@@ -26,6 +26,8 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [aws_security_group.db.id]
   publicly_accessible    = false
   multi_az               = false # A standby replica would double the cost; fine for an MVP.
+  # Same AZ as the API server: traffic between AZs is billed, traffic within one is free.
+  availability_zone = aws_subnet.public[0].availability_zone
 
   # Daily backups kept 7 days, allowing restore to any point in that window.
   # Windows are in UTC: ~3am Pacific.
