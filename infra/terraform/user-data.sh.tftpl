@@ -1,0 +1,36 @@
+#!/bin/bash
+# First-boot setup for the API server (Amazon Linux 2023, ARM).
+set -euxo pipefail
+
+# 1 GB swap as a cushion on a 1 GB server.
+fallocate -l 1G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile swap swap defaults 0 0' >> /etc/fstab
+
+# Docker + the Compose plugin.
+dnf install -y docker
+systemctl enable --now docker
+mkdir -p /usr/local/lib/docker/cli-plugins
+curl -fsSL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-aarch64 \
+  -o /usr/local/lib/docker/cli-plugins/docker-compose
+chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+# App files. The app itself starts on the first deploy.
+mkdir -p /opt/planza
+cat > /opt/planza/host.env <<'HOSTENV'
+REGION=${region}
+REGISTRY=${registry}
+API_DOMAIN=${api_domain}
+HOSTENV
+
+cat > /opt/planza/compose.yml <<'COMPOSE'
+${compose}
+COMPOSE
+
+cat > /opt/planza/Caddyfile <<'CADDY'
+${caddyfile}
+CADDY
+
+cat > /opt/planza/deploy.sh <<'DEPLOY'
+${deploy_sh}
+DEPLOY
+chmod +x /opt/planza/deploy.sh

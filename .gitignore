@@ -12,3 +12,7 @@ coverage/
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
+
+# Terraform plan files can contain secrets
+tfplan
+*.tfplan

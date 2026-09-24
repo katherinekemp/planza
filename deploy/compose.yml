@@ -1,0 +1,31 @@
+# Production services on the EC2 server. deploy.sh sets API_IMAGE and API_DOMAIN in .env.
+services:
+  api:
+    image: ${API_IMAGE}
+    env_file: app.env
+    restart: unless-stopped
+    mem_limit: 400m
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # TLS certificates; kept across restarts.
+      - caddy_config:/config
+    restart: unless-stopped
+    depends_on: [api]
+    logging:
+      driver: json-file
+      options: { max-size: 10m, max-file: '3' }
+
+volumes:
+  caddy_data:
+  caddy_config:
