@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=.env src/server.ts",
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --packages=external --outfile=dist/server.js",
-    "start": "node dist/server.js",
+    "build": "esbuild src/server.ts src/db/migrate.ts --bundle --platform=node --format=esm --target=node22 --outdir=dist --entry-names=[name] --sourcemap --banner:js=\"import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);\"",
+    "start": "node --enable-source-maps dist/server.js",
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "db:generate": "drizzle-kit generate",
