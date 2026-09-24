@@ -55,7 +55,7 @@ resource "aws_security_group" "api" {
 
 resource "aws_vpc_security_group_ingress_rule" "api_http" {
   security_group_id = aws_security_group.api.id
-  description       = "HTTP (Caddy redirects to HTTPS and answers Let's Encrypt challenges)"
+  description       = "HTTP - Caddy redirects to HTTPS and answers Lets Encrypt challenges"
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "tcp"
   from_port         = 80
