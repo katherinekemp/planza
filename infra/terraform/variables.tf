@@ -10,9 +10,13 @@ variable "app_domain" {
 }
 
 variable "github_repo" {
-  description = "owner/name of the repo allowed to deploy via GitHub Actions."
+  description = <<-EOT
+    Repo allowed to deploy via GitHub Actions, as it appears in GitHub's OIDC "sub" claim:
+    owner@<owner id>/repo@<repo id>. The immutable IDs mean a different repo created later
+    under the same name can't deploy here.
+  EOT
   type        = string
-  default     = "katherinekemp/planza"
+  default     = "katherinekemp@40777203/planza@1384638164"
 }
 
 variable "instance_type" {
