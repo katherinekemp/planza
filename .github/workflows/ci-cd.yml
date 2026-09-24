@@ -1,0 +1,133 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# One deploy at a time; a newer push waits rather than racing an older one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: planza
+          POSTGRES_PASSWORD: planza
+          POSTGRES_DB: planza
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U planza" --health-interval 2s --health-timeout 3s --health-retries 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  deploy-api:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Native ARM runner, matching the Graviton server (no slow emulation).
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      id-token: write # Lets the job request an OIDC token to assume the AWS role.
+    env:
+      IMAGE: ${{ vars.ECR_REPOSITORY_URL }}:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      # Tags are immutable in ECR, so a re-run of the same commit reuses the existing image.
+      - name: Check for existing image
+        id: existing
+        run: |
+          if aws ecr describe-images --repository-name planza-api --image-ids imageTag=${{ github.sha }} >/dev/null 2>&1; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: docker/setup-buildx-action@v4
+        if: steps.existing.outputs.found != 'true'
+      - uses: docker/build-push-action@v7
+        if: steps.existing.outputs.found != 'true'
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy on the server via SSM Run Command
+        run: |
+          set -euo pipefail
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "${{ vars.API_INSTANCE_ID }}" \
+            --document-name AWS-RunShellScript \
+            --comment "Deploy ${{ github.sha }}" \
+            --parameters 'commands=["/opt/planza/deploy.sh ${{ github.sha }}"]' \
+            --query Command.CommandId --output text)
+          echo "SSM command: $CMD_ID"
+          # The waiter fails if the command fails; either way, print the server's output.
+          STATUS=0
+          aws ssm wait command-executed --command-id "$CMD_ID" --instance-id "${{ vars.API_INSTANCE_ID }}" || STATUS=$?
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "${{ vars.API_INSTANCE_ID }}" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text
+          exit $STATUS
+      - name: Smoke test
+        run: curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "${{ vars.VITE_API_URL }}/health"
+
+  deploy-web:
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @planza/web build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          VITE_AUTH_MODE: cognito
+          VITE_COGNITO_AUTHORITY: ${{ vars.VITE_COGNITO_AUTHORITY }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+          VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Upload to S3
+        working-directory: apps/web/dist
+        run: |
+          # Hashed filenames change whenever content changes, so they can be cached forever.
+          aws s3 sync assets "s3://${{ vars.WEB_BUCKET }}/assets" \
+            --cache-control "public, max-age=31536000, immutable"
+          # index.html (and other unhashed files) must always be revalidated.
+          aws s3 sync . "s3://${{ vars.WEB_BUCKET }}" --exclude "assets/*" --delete \
+            --cache-control "no-cache"
+      - name: Invalidate CloudFront
+        run: aws cloudfront create-invalidation --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --paths "/*"
