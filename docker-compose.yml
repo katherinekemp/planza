@@ -1,0 +1,20 @@
+# Local development services. Production uses RDS instead of this container.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: planza
+      POSTGRES_PASSWORD: planza
+      POSTGRES_DB: planza
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U planza']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  pgdata:
