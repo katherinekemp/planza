@@ -3,6 +3,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 import { Layout } from './components/Layout.tsx';
+import { AuthCallbackPage } from './pages/AuthCallbackPage.tsx';
 import { GroupPage } from './pages/GroupPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { JoinPage } from './pages/JoinPage.tsx';
@@ -16,6 +17,7 @@ const queryClient = new QueryClient({
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  { path: '/auth/callback', element: <AuthCallbackPage /> },
   {
     element: <Layout />,
     children: [

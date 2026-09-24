@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { authMode, devLogin } from '../lib/auth.ts';
+import { authMode, devLogin, login } from '../lib/auth.ts';
 import { Button, Card, Input, Label } from '../components/ui.tsx';
 
 export function LoginPage() {
@@ -9,7 +9,7 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const next = params.get('next') ?? '/';
 
-  function submit(e: FormEvent) {
+  function submitDev(e: FormEvent) {
     e.preventDefault();
     devLogin(email);
     navigate(next, { replace: true });
@@ -25,7 +25,7 @@ export function LoginPage() {
         </div>
         <Card>
           {authMode === 'dev' ? (
-            <form onSubmit={submit} className="space-y-3">
+            <form onSubmit={submitDev} className="space-y-3">
               <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-800">
                 Dev mode: type any email to log in as that person.
               </p>
@@ -44,7 +44,14 @@ export function LoginPage() {
               </Button>
             </form>
           ) : (
-            <p className="text-sm text-stone-500">Cognito login coming soon.</p>
+            <div className="space-y-3 text-center">
+              <p className="text-sm text-stone-600">
+                Make plans with friends: post an idea, pick a date, see who's in.
+              </p>
+              <Button className="w-full" onClick={() => login(next)}>
+                Log in or sign up
+              </Button>
+            </div>
           )}
         </Card>
       </div>

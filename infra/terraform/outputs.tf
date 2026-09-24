@@ -18,5 +18,6 @@ output "github_actions_variables" {
     VITE_API_URL               = "https://${local.api_domain}"
     VITE_COGNITO_DOMAIN        = "https://${aws_cognito_user_pool_domain.main.domain}.auth.${var.region}.amazoncognito.com"
     VITE_COGNITO_CLIENT_ID     = aws_cognito_user_pool_client.web.id
+    VITE_COGNITO_AUTHORITY     = "https://cognito-idp.${var.region}.amazonaws.com/${aws_cognito_user_pool.main.id}"
   }
 }

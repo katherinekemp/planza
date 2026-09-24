@@ -27,13 +27,7 @@ export function Layout() {
               <Link to="/profile" className="text-stone-600 hover:text-stone-900">
                 {me.data.displayName}
               </Link>
-              <button
-                className="text-stone-400 hover:text-stone-700"
-                onClick={async () => {
-                  await logout();
-                  window.location.href = '/login';
-                }}
-              >
+              <button className="text-stone-400 hover:text-stone-700" onClick={logout}>
                 Log out
               </button>
             </div>
